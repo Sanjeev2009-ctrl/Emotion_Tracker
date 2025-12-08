@@ -1,0 +1,20 @@
+# Ignore database file (will be auto-created)
+emotions.db
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore virtual environment
+venv/
+.venv/
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+
+# Ignore daily reports (personal data)
+daily_reports/
