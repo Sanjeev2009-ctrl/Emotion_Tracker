@@ -81,17 +81,28 @@ def clear_all():
 
 # === REPORT FUNCTION ===
 def save_report():
-    entries = get_today()
-    if not entries: return None
-    os.makedirs(REPORTS, exist_ok=True)
-    emotions = [e[2] for e in entries]
-    stresses = [e[3] for e in entries]
-    report = f"EMOTIONAL TONE & STRESS ANALYZER - {date.today()}\n{'='*50}\nTotal: {len(entries)} | Avg: {sum(stresses)//len(stresses)}/100 | Dominant: {max(set(emotions), key=emotions.count)}\n\n"
-    for i, e in enumerate(entries, 1): 
-        report += f"{i}. [{e[4].split(' ')[1][:5] if ' ' in str(e[4]) else e[4]}] {e[2]} ({e[3]})\n"
-    with open(os.path.join(REPORTS, f"report_{date.today()}.txt"), "w") as f: 
-        f.write(report)
-    return True
+    try:
+        entries = get_today()
+        report_type = "Today's"
+        # Fallback: if no entries today, save all entries instead
+        if not entries:
+            entries = get_all()
+            report_type = "All"
+        if not entries: 
+            return (None, "No entries found. Add some mood entries first!")
+        os.makedirs(REPORTS, exist_ok=True)
+        emotions = [e[2] for e in entries]
+        stresses = [e[3] for e in entries]
+        report = f"EMOTIONAL TONE & STRESS ANALYZER - {report_type} Report ({date.today()})\n{'='*50}\nTotal: {len(entries)} | Avg: {sum(stresses)//len(stresses)}/100 | Dominant: {max(set(emotions), key=emotions.count)}\n\n"
+        for i, e in enumerate(entries, 1): 
+            report += f"{i}. [{e[4].split(' ')[1][:5] if ' ' in str(e[4]) else e[4]}] {e[2]} ({e[3]})\n"
+        filename = f"emotion_report_{date.today()}.txt"
+        filepath = os.path.join(REPORTS, filename)
+        with open(filepath, "w") as f: 
+            f.write(report)
+        return (True, f"{report_type} Report saved!\n\nLocation: daily_reports/{filename}\nEntries: {len(entries)}")
+    except Exception as e:
+        return (False, f"Error saving report: {str(e)}")
 
 # === ANALYSIS FUNCTION ===
 # Counts how many keywords from each emotion appear in the text
@@ -232,13 +243,35 @@ class App:
         cf.pack(fill=tk.BOTH, expand=True, padx=35, pady=18)
         data = get_counts()
         if not data or not CHARTS:
-            return tk.Label(cf, text="No data" if not data else "Install matplotlib", font=("Segoe UI", 12), bg=c["card"], fg=c["light"]).pack(pady=100)
+            return tk.Label(cf, text="No data available yet" if not data else "Install matplotlib", font=("Segoe UI", 12), bg=c["card"], fg=c["light"]).pack(pady=100)
+        
+        # Prepare data for all emotions to ensure consistent chart
+        all_emotions = EMOTIONS
+        counts = [data.get(e, 0) for e in all_emotions]
+        colors = [COLORS[e] for e in all_emotions]
+        
         fig, ax = plt.subplots(figsize=(8, 5), facecolor=c["card"])
-        ax.bar(data.keys(), data.values(), color=[COLORS[e] for e in data.keys()])
-        ax.set_ylabel("Count", color=c["fg"], fontsize=12)
+        bars = ax.bar(all_emotions, counts, color=colors)
+        
+        # Styling
         ax.set_facecolor(c["card"])
-        ax.tick_params(colors=c["fg"], labelsize=10)
-        for s in ax.spines.values(): s.set_color(c["border"])
+        ax.tick_params(axis='x', colors=c["fg"], labelsize=9, rotation=45)
+        ax.tick_params(axis='y', colors=c["fg"], labelsize=10)
+        ax.spines['bottom'].set_color(c["border"])
+        ax.spines['left'].set_color(c["border"])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.set_ylabel("Frequency", color=c["fg"], fontsize=11)
+        
+        # Add value labels on top of bars
+        for bar in bars:
+            height = bar.get_height()
+            if height > 0:
+                ax.text(bar.get_x() + bar.get_width()/2., height,
+                        f'{int(height)}',
+                        ha='center', va='bottom', color=c["fg"])
+                        
+        plt.tight_layout()
         FigureCanvasTkAgg(fig, cf).get_tk_widget().pack(fill=tk.BOTH, expand=True)
         plt.close(fig)
 
@@ -302,7 +335,13 @@ class App:
         plt.close(fig)
 
     def save_r(self): 
-        messagebox.showinfo("Report", "Saved to daily_reports folder!" if save_report() else "No entries today")
+        success, message = save_report()
+        if success:
+            messagebox.showinfo("✓ Report Saved", message)
+        elif success is None:
+            messagebox.showwarning("⚠ No Data", message)
+        else:
+            messagebox.showerror("✗ Error", message)
     
     def clear(self):
         if messagebox.askyesno("Clear", "Delete all data?"):
